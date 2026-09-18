@@ -1,0 +1,11 @@
+tempo 100
+twin-kle   C4 1  C4 1
+twin-kle   G4 1  G4 1
+lit-tle    A4 1  A4 1
+star       G4 2
+how        F4 1
+i          F4 1
+won-der    E4 1  E4 1
+what       D4 1
+you        D4 1
+are        C4 2
