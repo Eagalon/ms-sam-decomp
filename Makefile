@@ -9,7 +9,7 @@ all: build/sam_say build/samsynth build/lextest
 build:
 	mkdir -p build
 
-build/sam_say: $(LIB) src/sam_say.c | build
+build/sam_say: $(LIB) src/sam4fx.c src/sam_say.c | build
 	$(CC) $(CFLAGS) $^ -lm -o $@
 
 build/samsynth: src/sam.c src/samsynth.c | build
@@ -20,7 +20,7 @@ build/lextest: src/sam_lex.c src/sam_morph.c src/lextest.c | build
 
 standalone: build/sam_standalone
 
-build/sam_standalone: $(LIB) src/sam_say.c src/sam_data.c | build
+build/sam_standalone: $(LIB) src/sam4fx.c src/sam_say.c src/sam_data.c | build
 	$(CC) $(CFLAGS) -DSAM_EMBEDDED $^ -lm -o $@
 
 clean:

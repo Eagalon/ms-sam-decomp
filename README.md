@@ -1,15 +1,21 @@
-# Microsoft Sam in portable C
+# Microsoft Sam, Mike and Mary in portable C
 
-A reconstruction of the SAPI 5 "Microsoft Sam" voice (`spttseng.dll`, Windows XP's "Microsoft TTS
-engine") in plain C99. It reads the **original voice data files** at runtime and produces the same
+A reconstruction of the SAPI 5 "Microsoft TTS engine" (`spttseng.dll`, Windows XP) that speaks as
+**Microsoft Sam, Microsoft Mike and Microsoft Mary**, in plain C99, plus the **SAPI 4 voice effects**
+("Mike in Hall", "in Stadium", "in Space", the RoboSoft robots and Whisper) rebuilt as a reusable
+audio effect. It reads the **original voice data files** at runtime and produces the same
 audio as the real engine: identical length and every sample within ±1 LSB of the 16-bit output.
 About 99.7% of samples match exactly; the rest differ by float rounding.
 
 No Microsoft code is included. The C was written from a disassembly and decompilation of the engine
 and checked function by function against the running DLL.
 
-**The voice data is not included.** You need `Sam.spd`, `LTTS1033.LXA` and `r1033tts.LXA` from your own
-Microsoft Sam install (Windows XP, or the SAPI 5.1 runtime; look in
+The three voices are the same engine and the same code; only the voice file (`Sam.spd`, `Mike.spd`,
+`Mary.spd`) and each voice's base pitch (100, 110 and 189 Hz, read from its `.sdf`) differ. Mike and Mary
+match the real voices as closely as Sam does (identical length, every sample within ±1 LSB).
+
+**The voice data is not included.** You need `Sam.spd` (and/or `Mike.spd` / `Mary.spd` with their
+`.sdf` files), `LTTS1033.LXA` and `r1033tts.LXA` from your own install (Windows XP, or the SAPI 5.1 runtime; look in
 `C:\Program Files\Common Files\Microsoft Shared\Speech\` and its `1033` subfolder).
 
 ## Status
@@ -27,7 +33,7 @@ Microsoft Sam install (Windows XP, or the SAPI 5.1 runtime; look in
 
 Not done yet:
 - SAPI XML markup (`<rate>`, `<pitch>`, `<emph>`, `<spell>` ...) and user lexicons. Plain text only.
-- The SAPI 4 Sam (`msttsl`, a different engine) is not started.
+- The SAPI 4 voices themselves (`msttsl`, a different engine) are not ported; only their effects are.
 
 ## Building
 
@@ -54,12 +60,34 @@ The result needs no data files, but it contains Microsoft's data, so keep it to 
 
 ## Running
 
-Point `--data` at the folder holding `Sam.spd`, `LTTS1033.LXA` and `r1033tts.LXA`.
+Point `--data` at the folder holding the voice files and the two `.LXA` files; `--voice` picks the voice.
 
 ```
 build\x64\sam_say.exe --data data\voice "Hello, my name is Microsoft Sam." out.wav
-build\x64\sam_say.exe --data data\voice @story.txt out.wav        (read a UTF-8 file)
+build\x64\sam_say.exe --data data\voice --voice Mike "Hello, I am Mike." out.wav      (Mike.spd + Mike.sdf)
+build\x64\sam_say.exe --data data\voice --voice Mary @story.txt out.wav              (read a UTF-8 file)
+build\x64\sam_say.exe --data data\voice --voice Mike --effect hall "Mike in Hall." out.wav
 ```
+
+### SAPI 4 voice effects
+
+`--effect NAME` gives any voice the voice modes of the 1999 SAPI 4 engine (`msttssyn.dll`):
+
+| name | original voice | what it is |
+|---|---|---|
+| `hall` | Mike / Mary in Hall | 4 allpass filters in series, 30.6 / 20.8 / 14.9 / 11.0 ms, feedback about 0.75 |
+| `stadium` | ... in Stadium | the same with delays 5.3x longer (162 / 111 / 71 / 44 ms): separate slaps |
+| `space` | ... in Space | one 400 ms allpass: a long fading repeat |
+| `room` | (never used by Microsoft) | 81 / 55 / 36 / 22 ms |
+| `robosoft1` ... `robosoft6` | RoboSoft One ... Six | a 10 ms allpass at 94% feedback rings at 100 Hz and its harmonics (the metallic buzz); One/Six shorten the loop by a random 0-40% on every chunk (the warble); One, Two, Five and Six are also monotone |
+| `robot` | = `robosoft1` | |
+| `whisper` | Male / Female / Sam Whisper | every frame gets noise excitation, then the FIR `[0.25, -0.5, 0.25]` |
+| `monotone` | | flat pitch only |
+
+Each effect is `out = clip(dry*x + allpasses(send*x))`; each allpass is `v = x + g*d, y = d - g*v` with the
+preset's delays and dB gains (details and the original table addresses are in `src/sam4fx.c`). The
+RoboSoft presets add up to +9 dB, which clips on the louder SAPI 5 voices, so `sam_say` trims their input
+by 5-10 dB; `--no-trim` restores the original level. `src/sam4fx.h` works on any 16-bit audio stream.
 
 Experiment knobs (not in the original engine):
 

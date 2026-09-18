@@ -1628,7 +1628,7 @@ static int speak_sentence(sam_tts *t, wordlist *l, sam_pcm_cb cb, void *user)
     position_flags(&il);
     select_units(t, &il);
     durations(&il, 1.0);
-    if (build_f0(&il, 100.0, (double)0.4f) != 0) {
+    if (build_f0(&il, (double)t->base_pitch, (double)0.4f) != 0) {
         free(il.it);
         return -1;
     }
@@ -1647,7 +1647,7 @@ static int speak_sentence(sam_tts *t, wordlist *l, sam_pcm_cb cb, void *user)
         g.n_knots = 20;
         for (j = 0; j < 20; j++) {
             g.t[j] = (float)((double)x->t[j] * 22050.0);
-            g.f0[j] = x->f0[j];
+            g.f0[j] = t->monotone ? t->base_pitch : x->f0[j];
             g.amp[j] = x->amp;
         }
         rc = sam_synth_segment(t->synth, &g, hold, t);
@@ -1898,6 +1898,8 @@ static sam_tts *tts_finish(sam_tts *t, const sam_params *p, char *err, size_t er
     t->synth = sam_synth_new(t->voice, p);
     if (!t->synth) goto fail;
     t->transpose = p ? p->transpose : 0.0f;
+    t->base_pitch = p && p->base_pitch > 0.0f ? p->base_pitch : 100.0f;
+    t->monotone = p ? p->monotone : 0;
     t->rand_state = 1;
     t->st_rng = 1.0f;
     t->st_rate = 1.0f;

@@ -47,6 +47,9 @@ typedef struct {
     float sing_vibrato;  /* singer's vibrato depth in cents (0 = off); fades in 0.15 s into each segment */
     float sing_vibrato_rate; /* its speed in Hz */
     float transpose;     /* sam_tts_sing: shift every note by this many semitones */
+    float base_pitch;    /* the voice's base pitch in Hz, from its .sdf (Sam 100, Mike 110, Mary 189) */
+    int whisper;         /* SAPI 4 Whisper: every frame gets noise excitation */
+    int monotone;        /* SAPI 4 RoboSoft: every pitch point = the base pitch */
 } sam_params;
 
 void sam_params_default(sam_params *p);

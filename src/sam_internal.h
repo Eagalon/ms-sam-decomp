@@ -10,6 +10,8 @@ struct sam_tts {
     sam_lexicon *lex;
     sam_lts *lts;
     sam_synth *synth;
+    float base_pitch; /* Hz, from the voice's .sdf */
+    int monotone;     /* SAPI 4 RoboSoft: flat pitch */
     uint32_t rand_state; /* MSVC rand(): the engine's accent prominences come from it */
     /* quote / parenthesis state of the word builder (engine this+0xe8/0xe9, pitch offset 0xec,
      * range 0xf0, rate 0x28); kept across sentences like the engine does */

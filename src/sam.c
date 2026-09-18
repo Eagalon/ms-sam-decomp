@@ -390,7 +390,15 @@ void sam_unit_free(sam_unit *u)
 }
 
 /* FUN_5ed58ee3 (Voice_DecodeUnit). */
+static int unit_decode(const sam_voice *v, int index, int *noise_pos, sam_unit *u, int whisper);
+
 int sam_unit_decode(const sam_voice *v, int index, int *noise_pos, sam_unit *u)
+{
+    return unit_decode(v, index, noise_pos, u, 0);
+}
+
+/* whisper (SAPI 4 msttssyn): every frame takes the unvoiced (noise) path and is marked unvoiced */
+static int unit_decode(const sam_voice *v, int index, int *noise_pos, sam_unit *u, int whisper)
 {
     const int N = v->fft_n, order = v->order;
     const uint8_t *p;
@@ -433,6 +441,8 @@ int sam_unit_decode(const sam_voice *v, int index, int *noise_pos, sam_unit *u)
         return -1;
     }
     memset(spec, 0, sizeof spec);
+    if (whisper)
+        for (f = 0; f < u->nframes; f++) u->periods[f] = -fabsf(u->periods[f]);
     for (f = 0; f < u->nframes; f++) {
         int n = (int)fabsf(u->periods[f]);
         float *out = u->exc + pos;
@@ -493,6 +503,9 @@ void sam_params_default(sam_params *p)
     p->sing_vibrato = 0.0f;
     p->sing_vibrato_rate = 5.5f;
     p->transpose = 0.0f;
+    p->base_pitch = 100.0f;
+    p->whisper = 0;
+    p->monotone = 0;
     p->no_reverse = 0;
 }
 
@@ -701,7 +714,7 @@ int sam_synth_segment(sam_synth *s, const sam_segment *g_in, sam_pcm_cb cb, void
         return 0;
     }
     if (g.n_knots < 2 || g.n_knots > SAM_MAX_KNOTS) return -1;
-    if (sam_unit_decode(v, g.unit, &s->noise_pos, &u) != 0) return -1;
+    if (unit_decode(v, g.unit, &s->noise_pos, &u, s->p.whisper) != 0) return -1;
 
     rate = (float)((double)g.dur * sr / (double)u.total);
     /* the original sizes its epoch arrays from duration and peak pitch; a frame can repeat at most
