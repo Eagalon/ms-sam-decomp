@@ -154,6 +154,20 @@ then `sam_tts_speak`. At a lower level, `sam_synth_segment` renders single acous
 6. **Synthesis**: a pitch-synchronous LPC vocoder. Vector-quantized LSF frames give the filters, and
    irfft pulses or noise give the excitation.
 
+## Microsoft Anna as a Sam voice
+
+`annavoice/` builds a Sam-format voice file out of **Microsoft Anna's** recordings, so this engine speaks
+with her timbre: her 5.5 hours of recorded speech become a 1.7 MB vocoder voice, and everything here
+applies to it — pitch, rate, singing, the SAPI 4 effects.
+
+It needs Anna installed, the [Microsoft Anna port](https://github.com/KamiKitsune420/ms-ana-decomp) for her
+corpus decoder, and your own `Sam.spd` for the phone set and trees. Her units are demisyllables, so the
+builder forced-aligns her corpus to cut phones out, analyses them pitch-synchronously, trains fresh
+codebooks on her data and writes the file. See `annavoice/README.md`.
+
+**The voice file is not included and should not be redistributed** — it is Microsoft's recorded speech in
+another format. The builder produces it locally from your own installation.
+
 ## Verification tools
 
 - `harness/samtap.exe`: loads the real `spttseng.dll` and hot-patches internal functions. It speaks
