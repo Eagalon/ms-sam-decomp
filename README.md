@@ -45,6 +45,10 @@ src\build_clang.bat        (clang -std=c99 -pedantic, output in build\clang\)
 make                       (Linux / macOS / MinGW, output in build/)
 ```
 
+Windows builds produce **`sam.dll`** with its import library, and `build\<arch>\dist\` collects the DLL,
+the `.lib`, the headers (`sam_tts.h` is the one to include) and the CLI — everything another program needs.
+On other platforms `make dist` does the same with `libsam.so` / `.dylib`.
+
 ### Standalone exe (voice data compiled in)
 
 Put the three data files in `data/voice/`, then:

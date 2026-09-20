@@ -2,7 +2,7 @@
  *
  *   lib_test [data_dir]        (default: ..\..\data\voices relative to the repo root, or SAM_DATA)
  *
- * 1. cancel from another thread stops within one audio chunk and sam_tts_speak_text returns 1
+ * 1. cancel from another thread stops within one audio chunk and sam_tts_speak returns 1
  * 2. returning nonzero from the audio callback stops it too, and also returns 1
  * 3. word / sentence / bookmark events are in order, inside the text, and their audio positions
  *    never run past the audio that has been delivered
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
     c.ncap = 60LL * SAM_TTS_SAMPLE_RATE;
     c.pcm = malloc((size_t)c.ncap * sizeof *c.pcm);
     cb.user = &c;
-    rc = sam_tts_speak_text(t, LONG_TEXT, 0, &cb);
+    rc = sam_tts_speak(t, LONG_TEXT, 0, &cb);
     full = c.samples;
     check(rc == 0, "speak returns 0 when it finishes");
     check(full > SAM_TTS_SAMPLE_RATE, "it produced more than a second of audio");
@@ -154,7 +154,7 @@ int main(int argc, char **argv)
         d.ncap = c.ncap;
         d.pcm = malloc((size_t)d.ncap * sizeof *d.pcm);
         cb.user = &d;
-        rc = t2 ? sam_tts_speak_text(t2, LONG_TEXT, 0, &cb) : -1;
+        rc = t2 ? sam_tts_speak(t2, LONG_TEXT, 0, &cb) : -1;
         check(rc == 0 && d.samples == full && !memcmp(c.pcm, d.pcm, (size_t)full * sizeof *d.pcm),
               "a freshly opened handle renders the same text identically");
         check(d.nword == c.nword && d.nsent == c.nsent, "and reports the same events");
@@ -171,7 +171,7 @@ int main(int argc, char **argv)
         c.order_ok = c.span_ok = c.pos_ok = 1;
         cb.user = &c;
         th = thread_start(canceller, &c);
-        rc = sam_tts_speak_text(t, LONG_TEXT, 0, &cb);
+        rc = sam_tts_speak(t, LONG_TEXT, 0, &cb);
         thread_join(th);
         check(rc == 1, "cancel from another thread returns 1");
         check(c.samples < full, "it stopped before the end");
@@ -191,7 +191,7 @@ int main(int argc, char **argv)
         c.order_ok = c.span_ok = c.pos_ok = 1;
         c.stop_after = SAM_TTS_SAMPLE_RATE / 2;
         cb.user = &c;
-        rc = sam_tts_speak_text(t, LONG_TEXT, 0, &cb);
+        rc = sam_tts_speak(t, LONG_TEXT, 0, &cb);
         check(rc == 1, "a nonzero audio callback return stops the speak and returns 1");
         check(c.samples < full, "it stopped before the end");
     }
@@ -205,7 +205,7 @@ int main(int argc, char **argv)
         c.ncap = 60LL * SAM_TTS_SAMPLE_RATE;
         c.pcm = malloc((size_t)c.ncap * sizeof *c.pcm);
         cb.user = &c;
-        rc = sam_tts_speak_text(t, LONG_TEXT, 0, &cb);
+        rc = sam_tts_speak(t, LONG_TEXT, 0, &cb);
         check(rc == 0 && c.samples > full / 2 && c.nword == 31,
               "a new speak after a cancel renders the whole text again");
         free(c.pcm);
@@ -219,7 +219,7 @@ int main(int argc, char **argv)
         c.text = xml;
         c.order_ok = c.span_ok = c.pos_ok = 1;
         cb.user = &c;
-        rc = sam_tts_speak_text(t, xml, SAM_SPEAK_XML, &cb);
+        rc = sam_tts_speak(t, xml, SAM_SPEAK_XML, &cb);
         check(rc == 0 && c.nbm == 2, "both bookmarks are reported");
         check(c.nsent == 2 && c.nword == 5, "the tags do not become words");
         check(c.order_ok && c.span_ok, "XML event positions are sane");
