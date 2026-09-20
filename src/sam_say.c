@@ -175,7 +175,7 @@ int main(int argc, char **argv)
         return 1;
     }
     header(s.f, 0);
-    if ((sing ? sam_tts_sing(t, text, on_pcm, &s) : sam_tts_speak(t, text, on_pcm, &s)) != 0) fprintf(stderr, "sam_say: synthesis error\n");
+    if ((sing ? sam_tts_sing(t, text, on_pcm, &s) : sam_tts_speak_pcm(t, text, on_pcm, &s)) != 0) fprintf(stderr, "sam_say: synthesis error\n");
     if (s.fx) { /* let the echoes die away: run the effect over silence, like the engine does between sentences */
         static int16_t z[22050];
         int k;

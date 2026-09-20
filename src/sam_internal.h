@@ -23,6 +23,10 @@ struct sam_tts {
     int16_t *pend;
     size_t npend, pcap;
     float transpose; /* sam_params.transpose, for sam_tts_sing */
+    /* library hosting (sam_tts_speak_ex): options, running sample count, current sentence span */
+    const sam_speak_opts *opts;
+    long long ev_total;
+    int sent_pos, sent_len;
 };
 
 int sam_synth_chunk_pos(const sam_synth *s);

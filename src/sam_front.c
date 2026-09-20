@@ -403,6 +403,7 @@ typedef struct {
     int note;               /* sing mode: 1 + note index (0 = none) */
     int coda;               /* sing mode: sustained consonant after the vowel */
     int f_start, f_end;
+    int wofs, wlen, wstart; /* source span of the word this sound belongs to; wstart = its first sound */
     float top, bot, t[20], f0[20];
 } item;
 
@@ -441,6 +442,7 @@ static int build_items(const wordlist *l, itemlist *out)
         const word *w = &l->w[wi];
         const word *nx = wi + 1 < l->n ? &l->w[wi + 1] : NULL;
         int accent_idx = -1, anchor_idx = -1, found = 0, k, first = 1;
+        int spoken = !is_silence_word(w); /* punctuation silences are not words */
         float wrate = w->rate;
         for (k = 0; k < w->nph; k++) {
             int ph = w->ph[k];
@@ -468,8 +470,11 @@ static int build_items(const wordlist *l, itemlist *out)
             if (!it) return -1;
             it->type = ph;
             it->note = w->note[k];
+            it->wofs = w->ofs;
+            it->wlen = w->len;
             if (first) {
                 it->flags |= 1;
+                it->wstart = spoken;
                 first = 0;
             }
             if (k < w->nph - 1 && (w->ph[k + 1] == ST1 || ph == 0xD || ph == 0xB || ph == 0xA || ph == 0xC)) it->flags |= 0x40;
@@ -500,6 +505,8 @@ static int build_items(const wordlist *l, itemlist *out)
             it->prom = w->prom;
             it->semi = w->semi;
             it->emph = w->emph;
+            it->wofs = w->ofs;
+            it->wlen = w->len;
             it->base = w->pause;
             it->pause_ms = (int)((double)w->pause * 1000.0);
             it->rate2 = 1.0f;
@@ -1556,6 +1563,17 @@ static int finish_sentence(sam_tts *t, const sam_sentence *b, sam_pcm_cb cb, voi
             }
         }
     }
+    { /* span of this sentence in the input text, for sam_mark */
+        int lo = b->end_ofs, hi = 0;
+        for (i = 0; i < b->nn; i++) {
+            const sam_node *n = &b->nodes[i];
+            if (n->len <= 0) continue;
+            if (n->ofs < lo) lo = n->ofs;
+            if (n->ofs + n->len > hi) hi = n->ofs + n->len;
+        }
+        t->sent_pos = hi > lo ? lo : 0;
+        t->sent_len = hi > lo ? hi - lo : 0;
+    }
     rc = build_words(t, b, &l);
     if (rc == 0 && l.n > 0) rc = speak_sentence(t, &l, cb, user);
     free(l.w);
@@ -1577,6 +1595,7 @@ static void hold(const int16_t *pcm, size_t n, void *user)
     }
     memcpy(t->pend + t->npend, pcm, sizeof(int16_t) * n);
     t->npend += n;
+    t->ev_total += (long long)n;
 }
 
 static void release(sam_tts *t, size_t keep)
@@ -1588,7 +1607,12 @@ static void release(sam_tts *t, size_t keep)
     t->npend -= out;
 }
 
-int sam_tts_speak(sam_tts *t, const char *text, sam_pcm_cb cb, void *user)
+int sam_tts_speak_pcm(sam_tts *t, const char *text, sam_pcm_cb cb, void *user)
+{
+    return sam_tts_speak_ex(t, text, NULL, cb, user);
+}
+
+int sam_tts_speak_ex(sam_tts *t, const char *text, const sam_speak_opts *opts, sam_pcm_cb cb, void *user)
 {
     sam_norm *nm = sam_norm_new(text);
     sam_sentence s = {0};
@@ -1597,11 +1621,20 @@ int sam_tts_speak(sam_tts *t, const char *text, sam_pcm_cb cb, void *user)
     t->out_cb = cb;
     t->out_user = user;
     t->npend = 0;
+    t->opts = opts;
+    t->ev_total = 0;
     sam_synth_chunk_reset(t->synth);
-    while (rc == 0 && (k = sam_norm_next(nm, t->lex, t->lts, &s)) > 0) rc = finish_sentence(t, &s, cb, user);
+    while (rc == 0 && (k = sam_norm_next(nm, t->lex, t->lts, &s)) > 0) {
+        if (opts && opts->cancel && *opts->cancel) {
+            rc = 1;
+            break;
+        }
+        rc = finish_sentence(t, &s, cb, user);
+    }
     if (k < 0) rc = -1;
     if (rc == 0) release(t, 0);
     t->npend = 0;
+    t->opts = NULL;
     sam_sentence_free(&s);
     sam_norm_free(nm);
     return rc;
@@ -1610,9 +1643,10 @@ int sam_tts_speak(sam_tts *t, const char *text, sam_pcm_cb cb, void *user)
 static int speak_sentence(sam_tts *t, wordlist *l, sam_pcm_cb cb, void *user)
 {
     itemlist il = {0};
+    const sam_speak_opts *o = t->opts;
+    int k, rc = 0, sent_done = 0;
     (void)cb; /* audio goes through hold()/release() */
     (void)user;
-    int k, rc = 0;
     if (getenv("SAM_DEBUG")) {
         for (k = 0; k < l->n; k++) {
             int j;
@@ -1627,7 +1661,9 @@ static int speak_sentence(sam_tts *t, wordlist *l, sam_pcm_cb cb, void *user)
     if (build_items(l, &il) != 0) return -1;
     position_flags(&il);
     select_units(t, &il);
-    durations(&il, 1.0);
+    if (o && o->pitch_offset != 0.0f)
+        for (k = 0; k < il.n; k++) il.it[k].off += o->pitch_offset;
+    durations(&il, o && o->sapi_rate > 0.0 ? o->sapi_rate : 1.0);
     if (build_f0(&il, (double)t->base_pitch, (double)0.4f) != 0) {
         free(il.it);
         return -1;
@@ -1636,6 +1672,21 @@ static int speak_sentence(sam_tts *t, wordlist *l, sam_pcm_cb cb, void *user)
         const item *x = &il.it[k];
         sam_segment g;
         int j;
+        if (o && o->cancel && *o->cancel) {
+            rc = 1;
+            break;
+        }
+        if (o && o->mark_cb && x->wstart) { /* just before the audio of this word */
+            sam_mark m;
+            m.flags = sent_done ? 1 : 3;
+            m.word_pos = x->wofs;
+            m.word_len = x->wlen;
+            m.sent_pos = t->sent_pos;
+            m.sent_len = t->sent_len;
+            m.audio_pos = t->ev_total;
+            sent_done = 1;
+            o->mark_cb(o->user, &m);
+        }
         g.hold = 0;
         g.unit = x->unit;
         g.dur = x->dur;

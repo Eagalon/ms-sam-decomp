@@ -81,7 +81,29 @@ sam_tts *sam_tts_new_mem(const void *spd, size_t spd_size, const void *lex, size
                          size_t lts_size, const sam_params *p, char *err, size_t errlen);
 void sam_tts_free(sam_tts *t);
 /* Speak ASCII/UTF-8 text; audio is delivered through cb (22050 Hz, 16-bit mono). */
-int sam_tts_speak(sam_tts *t, const char *text, sam_pcm_cb cb, void *user);
+int sam_tts_speak_pcm(sam_tts *t, const char *text, sam_pcm_cb cb, void *user);
+
+/* ---- marks and options, for library hosts (sam_tts.c); the plain sam_tts_speak above is
+ * sam_tts_speak_ex with no options, and behaves exactly as before. ---- */
+
+typedef struct {
+    int flags;              /* 1 = first sound of a word, 2 = first sound of a sentence */
+    int word_pos, word_len; /* UTF-16 offset and length of the word in the text */
+    int sent_pos, sent_len; /* ... of the sentence it belongs to */
+    long long audio_pos;    /* output samples produced before this sound */
+} sam_mark;
+
+typedef struct {
+    double sapi_rate;           /* divides every duration: 3^(SAPI rate/10); 0 or 1 = normal */
+    float pitch_offset;         /* added to every item's log2 pitch offset (0 = none) */
+    volatile const int *cancel; /* checked between items: nonzero stops the call (returns 1) */
+    void (*mark_cb)(void *user, const sam_mark *m); /* word / sentence starts, may be NULL */
+    void *user;
+} sam_speak_opts;
+
+/* Speak with options; opts may be NULL. Returns 0, 1 when cancelled, -1 on error. */
+int sam_tts_speak_ex(sam_tts *t, const char *text, const sam_speak_opts *opts, sam_pcm_cb cb, void *user);
+
 /* Sing a score: one line per word, "twin-kle C4 1 C4 1" (a note and a length in beats per syllable),
  * "- 2" for a rest, "tempo 120" to set beats per minute. Not part of the original engine. */
 int sam_tts_sing(sam_tts *t, const char *score, sam_pcm_cb cb, void *user);
